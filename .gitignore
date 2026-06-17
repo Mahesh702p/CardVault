@@ -1,0 +1,36 @@
+# PHP / Composer
+vendor/
+
+# Local Configurations & Secrets
+.env
+config/local.php
+deploy.py
+SETUP.md
+cardvault_system_description.md
+
+# System & IDE Configs
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*~
+.DS_Store
+
+# Logs & Cache
+*.log
+public/uploads/cards/
+public/uploads/
+scripts/.bulk_import_progress.json
+scratch/
+
+# Database dumps, backups & user data
+backups/
+*.sql
+*.xlsx
+*.xls
+bcard/
+covve_scan_export*.xlsx
+covve_scan_export*.xls
