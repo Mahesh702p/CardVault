@@ -20,20 +20,25 @@ if (!function_exists('getInitials')) {
     </div>
 
     <div class="stat-card">
-        <div class="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><path d="M9 22v-4h6v4"></path></svg></div>
-        <div class="stat-value"><?= $stats['total_companies'] ?></div>
-        <div class="stat-label">Companies</div>
+        <div class="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+        <div class="stat-value"><?= $stats['public_cards'] ?></div>
+        <div class="stat-label">Public Cards</div>
     </div>
     <div class="stat-card">
         <div class="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></div>
         <div class="stat-value"><?= $stats['my_cards'] ?></div>
         <div class="stat-label">My Cards</div>
     </div>
+    <div class="stat-card">
+        <div class="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
+        <div class="stat-value"><?= $stats['team_cards'] ?? 0 ?></div>
+        <div class="stat-label">Team Cards</div>
+    </div>
 </div>
 
 <div style="margin-top:1.25rem;">
     <!-- Recent Cards -->
-    <div style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:1.25rem;">
+    <div style="background:var(--bg-card); border:1px solid var(--border-card); border-radius:var(--radius-lg); padding:1.25rem;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
             <h3 style="font-size:0.95rem;">Recent Cards</h3>
             <a href="<?= APP_URL ?>/cards" class="btn btn-secondary btn-sm">View All</a>
@@ -46,7 +51,7 @@ if (!function_exists('getInitials')) {
             <?php foreach ($stats['recent_cards'] as $card): ?>
             <a href="<?= APP_URL ?>/cards/<?= $card['id'] ?>" style="display:flex; align-items:center; gap:0.75rem; padding:0.5rem 0; border-bottom:1px solid var(--border-color); text-decoration:none; color:inherit;">
                 <?php if (!empty($card['card_front_image']) && $card['card_front_image'] !== 'NA'): ?>
-                <div style="width:32px;height:32px;border-radius:var(--radius-sm);overflow:hidden;flex-shrink:0;border:1px solid var(--border-color);background:var(--bg-card-hover);">
+                <div style="width:32px;height:32px;border-radius:var(--radius-sm);overflow:hidden;flex-shrink:0;border:1px solid var(--border-card);background:var(--bg-card-hover);">
                     <img src="<?= APP_URL ?>/<?= htmlspecialchars($card['card_front_image']) ?>" alt="<?= htmlspecialchars($card['name']) ?>" style="width:100%; height:100%; object-fit:cover; display:block;">
                 </div>
                 <?php else: ?>

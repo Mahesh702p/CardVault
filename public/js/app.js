@@ -82,6 +82,12 @@ function initScanForm() {
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        
+        // Hide mobile keyboard by blurring any active input element
+        if (document.activeElement && typeof document.activeElement.blur === 'function') {
+            document.activeElement.blur();
+        }
+
         const btn = document.getElementById('scanBtn');
         const overlay = document.getElementById('loadingOverlay');
         
@@ -220,6 +226,19 @@ function initSearchSuggestions() {
             suggestions.classList.remove('active');
             clearBtn.classList.remove('visible');
             input.focus();
+
+            const url = new URL(window.location.href);
+            if (url.searchParams.has('q')) {
+                url.searchParams.delete('q');
+                url.searchParams.delete('page');
+                const overlay = document.getElementById('loadingOverlay');
+                const loadingText = document.getElementById('loadingText');
+                if (overlay && loadingText) {
+                    loadingText.textContent = 'Clearing search...';
+                    overlay.classList.add('active');
+                }
+                window.location.href = url.pathname + url.search;
+            }
         });
     }
 
@@ -263,6 +282,9 @@ function initSearchSuggestions() {
     const form = input.closest('form');
     if (form) {
         form.addEventListener('submit', () => {
+            if (document.activeElement && typeof document.activeElement.blur === 'function') {
+                document.activeElement.blur();
+            }
             const overlay = document.getElementById('loadingOverlay');
             const loadingText = document.getElementById('loadingText');
             if (overlay && loadingText) {
@@ -274,6 +296,9 @@ function initSearchSuggestions() {
 
     // Suggestions click loader
     window.triggerSearch = (query) => {
+        if (document.activeElement && typeof document.activeElement.blur === 'function') {
+            document.activeElement.blur();
+        }
         const overlay = document.getElementById('loadingOverlay');
         const loadingText = document.getElementById('loadingText');
         if (overlay && loadingText) {

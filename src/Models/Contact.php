@@ -14,12 +14,14 @@ class Contact {
                 company_id, name, designation, department_in_company,
                 phone_primary, phone_secondary, email_primary, email_secondary,
                 linkedin_url, card_front_image, card_back_image,
-                added_by_user_id, added_by_department_id, ai_confidence_score, is_verified
+                added_by_user_id, added_by_department_id, cards_visibility, team_id,
+                ai_confidence_score, is_verified
             ) VALUES (
                 :company_id, :name, :designation, :department_in_company,
                 :phone_primary, :phone_secondary, :email_primary, :email_secondary,
                 :linkedin_url, :card_front_image, :card_back_image,
-                :added_by_user_id, :added_by_department_id, :ai_confidence_score, :is_verified
+                :added_by_user_id, :added_by_department_id, :cards_visibility, :team_id,
+                :ai_confidence_score, :is_verified
             )
         ");
         $stmt->execute([
@@ -36,6 +38,8 @@ class Contact {
             ':card_back_image' => $data['card_back_image'] ?? '',
             ':added_by_user_id' => $data['added_by_user_id'],
             ':added_by_department_id' => $data['added_by_department_id'],
+            ':cards_visibility' => $data['cards_visibility'] ?? 'public',
+            ':team_id' => $data['team_id'] ?? null,
             ':ai_confidence_score' => $data['ai_confidence_score'] ?? null,
             ':is_verified' => $data['is_verified'] ?? false
         ]);
@@ -43,17 +47,16 @@ class Contact {
     }
 
     /**
-     * Find a duplicate contact by name and company, taking privacy settings into account
+     * Find a duplicate contact by name and company scanned/created by the current user
      */
-    public static function findDuplicate(string $name, int $companyId, int $currentUserId): ?array {
+    public static function findDuplicate(string $name, int $companyId, int $currentUserId, ?int $currentUserTeamId = null): ?array {
         $db = Database::getConnection();
         $stmt = $db->prepare("
             SELECT ct.id FROM contacts ct
-            JOIN users u ON ct.added_by_user_id = u.id
             WHERE LOWER(TRIM(ct.name)) = LOWER(TRIM(:name)) 
               AND ct.company_id = :company_id 
               AND ct.is_deleted = 0 
-              AND (u.cards_visibility = 'public' OR ct.added_by_user_id = :current_user_id)
+              AND ct.added_by_user_id = :current_user_id
             LIMIT 1
         ");
         $stmt->execute([
@@ -72,7 +75,8 @@ class Contact {
         $stmt = $db->prepare("
             SELECT ct.*, co.name AS company_name, co.website, co.industry, co.city AS company_city,
                    co.address AS company_address, co.gst_number, co.notes AS company_notes,
-                   u.name AS added_by_name, u.cards_visibility, d.name AS added_by_dept_name,
+                   u.name AS added_by_name, u.cards_visibility AS user_default_visibility, u.team_id AS added_by_user_team_id,
+                   d.name AS added_by_dept_name,
                    GROUP_CONCAT(DISTINCT ps.name SEPARATOR ', ') AS products_services,
                    GROUP_CONCAT(DISTINCT t.name SEPARATOR ', ') AS tags
             FROM contacts ct
@@ -99,22 +103,36 @@ class Contact {
         int $page = 1,
         int $perPage = ITEMS_PER_PAGE,
         ?int $currentUserId = null,
-        bool $isAdmin = false
+        bool $isAdmin = false,
+        ?int $currentTeamId = null,
+        ?int $scopeTeamId = null
     ): array {
         $db = Database::getConnection();
         $conditions = ["ct.is_deleted = 0"];
         $params = [];
 
-        // Privacy filter: hide cards from users who set their visibility to private
-        if (!$isAdmin && $currentUserId !== null) {
-            $conditions[] = "(u.cards_visibility = 'public' OR ct.added_by_user_id = :cur_uid)";
-            $params[':cur_uid'] = $currentUserId;
-        }
-
         if ($userId) {
+            // My Cards: only cards scanned from my account
             $conditions[] = "ct.added_by_user_id = :uid";
             $params[':uid'] = $userId;
+        } elseif ($scopeTeamId) {
+            // My Team: all cards of my team (public or private_team only)
+            $conditions[] = "ct.team_id = :scope_team_id AND ct.cards_visibility IN ('public', 'private_team')";
+            $params[':scope_team_id'] = $scopeTeamId;
+        } else {
+            // All Cards: all publicly available cards (or all if admin)
+            if (!$isAdmin) {
+                if ($currentTeamId !== null) {
+                    $conditions[] = "(ct.cards_visibility = 'public' OR ct.added_by_user_id = :cur_uid OR (ct.cards_visibility = 'private_team' AND ct.team_id = :cur_team_id))";
+                    $params[':cur_uid'] = $currentUserId;
+                    $params[':cur_team_id'] = $currentTeamId;
+                } else {
+                    $conditions[] = "(ct.cards_visibility = 'public' OR ct.added_by_user_id = :cur_uid)";
+                    $params[':cur_uid'] = $currentUserId;
+                }
+            }
         }
+
         if ($deptId) {
             $conditions[] = "ct.added_by_department_id = :did";
             $params[':did'] = $deptId;
@@ -135,10 +153,10 @@ class Contact {
         $sql = "
             SELECT ct.id, ct.name, ct.designation, ct.phone_primary, ct.email_primary,
                    ct.card_front_image, ct.ai_confidence_score, ct.is_verified, ct.created_at,
-                   ct.added_by_user_id,
+                   ct.added_by_user_id, ct.cards_visibility,
                    ct.rating_count, ct.rating_avg, ct.rating_bayesian,
                    co.name AS company_name, co.industry, co.city AS company_city,
-                   u.name AS added_by_name, u.cards_visibility, d.name AS dept_name,
+                   u.name AS added_by_name, u.cards_visibility AS user_default_visibility, d.name AS dept_name,
                    GROUP_CONCAT(DISTINCT ps.name SEPARATOR ', ') AS products_services
             FROM contacts ct
             LEFT JOIN companies co ON ct.company_id = co.id
@@ -178,7 +196,8 @@ class Contact {
                 name = :name, designation = :designation, department_in_company = :department_in_company,
                 phone_primary = :phone_primary, phone_secondary = :phone_secondary,
                 email_primary = :email_primary, email_secondary = :email_secondary,
-                linkedin_url = :linkedin_url, is_verified = :is_verified
+                linkedin_url = :linkedin_url, is_verified = :is_verified,
+                cards_visibility = :cards_visibility, team_id = :team_id
             WHERE id = :id AND is_deleted = 0
         ");
         $data[':id'] = $id;
@@ -203,45 +222,33 @@ class Contact {
         $stmt->execute([':id' => $id]);
     }
 
-    /**
-     * Get dashboard statistics
-     */
-    public static function getStats(?int $userId = null, ?int $deptId = null, ?int $currentUserId = null, bool $isAdmin = false): array {
+    public static function getStats(?int $userId = null, ?int $deptId = null, ?int $currentUserId = null, bool $isAdmin = false, ?int $currentTeamId = null): array {
         $db = Database::getConnection();
         
         // Build privacy condition
         $privacyCond = "";
         $params = [];
         if (!$isAdmin && $currentUserId !== null) {
-            $privacyCond = " AND (u.cards_visibility = 'public' OR ct.added_by_user_id = :cur_uid)";
-            $params[':cur_uid'] = $currentUserId;
+            if ($currentTeamId !== null) {
+                $privacyCond = " AND (ct.cards_visibility = 'public' OR ct.added_by_user_id = :cur_uid OR (ct.cards_visibility = 'private_team' AND ct.team_id = :cur_team_id))";
+                $params[':cur_uid'] = $currentUserId;
+                $params[':cur_team_id'] = $currentTeamId;
+            } else {
+                $privacyCond = " AND (ct.cards_visibility = 'public' OR ct.added_by_user_id = :cur_uid)";
+                $params[':cur_uid'] = $currentUserId;
+            }
         }
 
-        // 1. Total Cards count
-        if ($privacyCond) {
-            $totalStmt = $db->prepare("
-                SELECT COUNT(*) FROM contacts ct
-                JOIN users u ON ct.added_by_user_id = u.id
-                WHERE ct.is_deleted = 0 {$privacyCond}
-            ");
-            $totalStmt->execute($params);
-        } else {
-            $totalStmt = $db->query("SELECT COUNT(*) FROM contacts WHERE is_deleted = 0");
-        }
+        // 1. Total Cards count (Complete count of all non-deleted cards across the entire application)
+        $totalStmt = $db->query("SELECT COUNT(*) FROM contacts ct WHERE ct.is_deleted = 0");
         $total = (int)$totalStmt->fetchColumn();
 
-        // 2. Total Companies count
-        if ($privacyCond) {
-            $companiesStmt = $db->prepare("
-                SELECT COUNT(DISTINCT ct.company_id) FROM contacts ct
-                JOIN users u ON ct.added_by_user_id = u.id
-                WHERE ct.is_deleted = 0 {$privacyCond}
-            ");
-            $companiesStmt->execute($params);
-        } else {
-            $companiesStmt = $db->query("SELECT COUNT(DISTINCT company_id) FROM contacts WHERE is_deleted = 0");
-        }
-        $companies = (int)$companiesStmt->fetchColumn();
+        // 2. Total Public Cards Accessible count (Cards which are public)
+        $publicStmt = $db->query("
+            SELECT COUNT(*) FROM contacts ct
+            WHERE ct.is_deleted = 0 AND ct.cards_visibility = 'public'
+        ");
+        $publicCards = (int)$publicStmt->fetchColumn();
 
         // 3. Recent Cards list
         if ($privacyCond) {
@@ -278,10 +285,22 @@ class Contact {
             $myCards = (int)$myStmt->fetchColumn();
         }
 
+        // 5. Team cards count (Public and private_team only, excluding private_user)
+        $teamCards = 0;
+        if ($currentTeamId !== null) {
+            $teamStmt = $db->prepare("
+                SELECT COUNT(*) FROM contacts ct
+                WHERE ct.team_id = :team_id AND ct.is_deleted = 0 AND ct.cards_visibility IN ('public', 'private_team')
+            ");
+            $teamStmt->execute([':team_id' => $currentTeamId]);
+            $teamCards = (int)$teamStmt->fetchColumn();
+        }
+
         return [
             'total_cards' => $total,
-            'total_companies' => $companies,
+            'public_cards' => $publicCards,
             'my_cards' => $myCards,
+            'team_cards' => $teamCards,
             'recent_cards' => $recentCards
         ];
     }

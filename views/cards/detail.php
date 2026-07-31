@@ -14,7 +14,7 @@ if (!function_exists('getInitials')) {
 ?>
 
 <div style="margin-bottom:1.25rem;">
-    <a href="<?= APP_URL ?>/cards" style="color:var(--text-muted); font-size:0.85rem;">← Back to Cards</a>
+    <a href="<?= htmlspecialchars($_SESSION['last_cards_list_url'] ?? (APP_URL . '/cards')) ?>" style="color:var(--text-muted); font-size:0.85rem;" onclick="if(document.referrer && (document.referrer.includes('/cards') || document.referrer.includes('/search')) && !document.referrer.includes('/edit') && !document.referrer.includes('/delete') && !document.referrer.includes('/upload')){ window.history.back(); return false; }">← Back to Cards</a>
 </div>
 
 <div class="detail-grid">
@@ -53,8 +53,7 @@ if (!function_exists('getInitials')) {
                     <?php endif; ?>
                     <?php if (!empty($contact['email_primary'])): ?>
                     <span>✉️ <?= htmlspecialchars($contact['email_primary']) ?></span>
-                    <?php endif; ?>
-                </div>
+                    <?php endif; ?>                </div>
             </div>
         </div>
         <?php endif; ?>
@@ -78,7 +77,7 @@ if (!function_exists('getInitials')) {
         <div style="display:flex; gap:0.75rem; align-items:center; margin-top:1rem; margin-bottom:1rem; padding-bottom:1rem; border-bottom:1px solid var(--border-color); width: 100%;">
             <?php if (!empty($contact['phone_primary'])): ?>
             <a href="<?= $whatsappUrl ?>" target="_blank" class="quick-action-btn wa-btn" title="Message via WhatsApp">
-                <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.73-1.45L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.37 9.864-9.799.002-2.63-1.023-5.101-2.885-6.965C16.588 1.977 14.128.953 11.997.953c-5.444 0-9.866 4.373-9.87 9.802-.001 1.77.466 3.498 1.354 5.021l-.995 3.634 3.738-.971zm11.367-7.233c-.3-.15-1.771-.875-2.028-.969-.258-.094-.446-.14-.633.14-.187.281-.726.969-.889 1.157-.163.188-.327.21-.627.06-1.554-.78-2.618-1.353-3.662-3.143-.275-.473-.275-.768-.125-.919.135-.136.3-.349.45-.524.15-.175.2-.3.3-.5.1-.2.05-.375-.025-.525-.075-.15-.633-1.528-.867-2.091-.228-.547-.46-.473-.633-.482-.163-.008-.35-.01-.537-.01-.187 0-.49.07-.747.35-.258.281-.983.961-.983 2.342 0 1.381 1.004 2.713 1.144 2.9.14.187 1.977 3.019 4.79 4.231.67.289 1.192.462 1.6.591.674.214 1.288.184 1.774.11.542-.082 1.771-.723 2.022-1.42.252-.697.252-1.295.176-1.42-.076-.125-.276-.201-.576-.351z"/></svg>
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.73-1.45L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.37 9.864-9.799.002-2.63-1.023-5.101-2.885-6.965C16.588 1.977 14.128.953 11.997.953c-5.444 0-9.866 4.373-9.87 9.802-.001 1.77.466 3.498 1.354 5.021l-.995 3.634 3.738-.971zm11.367-7.233c-.3-.15-1.771-.875-2.028-.969-.258-.094-.446-.14-.633.14-.187.281-.726.969-.889 1.157-.163.188-.327.21-.627.06-1.554-.78-2.618-1.353-3.662-3.143-.275-.473-.273-.768-.125-.919.135-.136.3-.349.45-.524.15-.175.2-.3.3-.5.1-.2.05-.375-.025-.525-.075-.15-.633-1.528-.867-2.091-.228-.547-.46-.473-.633-.482-.163-.008-.35-.01-.537-.01-.187 0-.49.07-.747.35-.258.281-.983.961-.983 2.342 0 1.381 1.004 2.713 1.144 2.9.14.187 1.977 3.019 4.79 4.231.67.289 1.192.462 1.6.591.674.214 1.288.184 1.774.11.542-.082 1.771-.723 2.022-1.42.252-.697.252-1.295.176-1.42-.076-.125-.276-.201-.576-.351z"/></svg>
             </a>
             <?php endif; ?>
 
@@ -88,9 +87,42 @@ if (!function_exists('getInitials')) {
             </a>
             <?php endif; ?>
 
+        <?php
+        // Build the share text
+        $shareLines = [];
+        $shareLines[] = '👤 ' . ($contact['name'] ?? '');
+        if (!empty($contact['designation']))     $shareLines[] = '💼 ' . $contact['designation'];
+        if (!empty($contact['company_name']))    $shareLines[] = '🏢 ' . $contact['company_name'];
+        if (!empty($contact['phone_primary']))   $shareLines[] = '📞 ' . $contact['phone_primary'];
+        if (!empty($contact['phone_secondary'])) $shareLines[] = '📞 ' . $contact['phone_secondary'] . ' (Alt)';
+        if (!empty($contact['email_primary']))   $shareLines[] = '✉️ '  . $contact['email_primary'];
+        if (!empty($contact['email_secondary'])) $shareLines[] = '✉️ '  . $contact['email_secondary'] . ' (Alt)';
+        if (!empty($contact['website']))         $shareLines[] = '🌐 ' . $contact['website'];
+        $shareText = implode("\n", $shareLines);
+        $shareUrl  = APP_URL . '/cards/' . $contact['id'];
+        $shareTitle = ($contact['name'] ?? 'Contact') . ' — CardVault';
+        ?>
+
             <a href="<?= $vcardUrl ?>" class="quick-action-btn vcf-btn" title="Export as vCard (VCF)">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg>
             </a>
+
+            <!-- Share Button -->
+            <button type="button" class="quick-action-btn share-btn" id="shareContactBtn" title="Share this contact"
+                data-share-title="<?= htmlspecialchars($shareTitle) ?>"
+                data-share-text="<?= htmlspecialchars($shareText) ?>"
+                data-share-url="<?= htmlspecialchars($shareUrl) ?>">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+            </button>
+
+            <!-- Copy-to-clipboard toast -->
+            <div id="shareToast" style="display:none; position:fixed; bottom:2rem; left:50%; transform:translateX(-50%); background:var(--accent); color:#fff; padding:0.65rem 1.25rem; border-radius:8px; font-size:0.9rem; font-weight:600; z-index:9999; box-shadow:0 4px 16px rgba(0,0,0,0.4); pointer-events:none;">
+                ✅ Contact info copied to clipboard!
+            </div>
         </div>
 
         <div style="display:flex; gap:0.5rem; flex-wrap:wrap; width: 100%; align-items:center;">
@@ -341,6 +373,67 @@ if (!function_exists('getInitials')) {
         img.addEventListener('click', function() {
             window.openLightbox(img.src);
         });
+    });
+})();
+
+// ── Share Contact Button ─────────────────────────────────────────────────────
+(function() {
+    var btn   = document.getElementById('shareContactBtn');
+    var toast = document.getElementById('shareToast');
+    if (!btn) return;
+
+    var title = btn.dataset.shareTitle;
+    var text  = btn.dataset.shareText;
+    var url   = btn.dataset.shareUrl;
+
+    function showToast(msg) {
+        if (!toast) return;
+        toast.textContent = msg;
+        toast.style.display = 'block';
+        toast.style.opacity = '1';
+        setTimeout(function() {
+            toast.style.transition = 'opacity 0.4s';
+            toast.style.opacity    = '0';
+            setTimeout(function() {
+                toast.style.display = 'none';
+                toast.style.transition = '';
+                toast.style.opacity    = '1';
+            }, 400);
+        }, 2500);
+    }
+
+    btn.addEventListener('click', function() {
+        // Full share payload: text + URL on new line
+        var fullText = text + '\n\n🔗 ' + url;
+
+        // Use native Web Share API if available (mobile / modern browsers)
+        if (navigator.share) {
+            navigator.share({ title: title, text: text, url: url })
+                .catch(function() { /* user cancelled — do nothing */ });
+            return;
+        }
+
+        // Fallback: copy to clipboard
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(fullText).then(function() {
+                showToast('✅ Contact info copied to clipboard!');
+                btn.classList.add('copied');
+                setTimeout(function() { btn.classList.remove('copied'); }, 2000);
+            }).catch(function() {
+                showToast('❌ Could not copy. Please copy manually.');
+            });
+        } else {
+            // Very old browser fallback
+            var ta = document.createElement('textarea');
+            ta.value = fullText;
+            ta.style.position = 'fixed';
+            ta.style.opacity  = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); showToast('✅ Contact info copied!'); }
+            catch(e) { showToast('❌ Copy not supported in this browser.'); }
+            document.body.removeChild(ta);
+        }
     });
 })();
 </script>

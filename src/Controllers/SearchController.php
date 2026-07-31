@@ -9,6 +9,7 @@ class SearchController {
      */
     public static function search(): void {
         $user = AuthMiddleware::user();
+        $_SESSION['last_cards_list_url'] = $_SERVER['REQUEST_URI'];
         $query = trim($_GET['q'] ?? '');
         $scope = $_GET['scope'] ?? 'all';
         $industry = $_GET['industry'] ?? null;
@@ -17,15 +18,19 @@ class SearchController {
 
         $userId = null;
         $deptId = null;
+        $scopeTeamId = null;
 
         if ($scope === 'mine') {
             $userId = $user['id'];
+        } elseif ($scope === 'team' && !empty($user['team_id'])) {
+            $scopeTeamId = $user['team_id'];
         }
 
         $isAdmin = ($user['role'] === 'admin');
         $result = SearchService::search(
             $query, $userId, $deptId, $industry, $city, $page,
-            ITEMS_PER_PAGE, $user['id'], $isAdmin
+            ITEMS_PER_PAGE, $user['id'], $isAdmin,
+            $user['team_id'] ?? null, $scopeTeamId
         );
         $filterOptions = SearchService::getFilterOptions();
 

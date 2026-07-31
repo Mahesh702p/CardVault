@@ -69,6 +69,33 @@
                 <input type="password" id="confirm_password" name="confirm_password" class="form-input" placeholder="Repeat your password" minlength="6" required autocomplete="new-password">
             </div>
 
+            <div class="form-group" style="margin-top: 1rem; margin-bottom: 1.25rem;">
+                <label class="form-label" style="font-weight: 600; color: var(--text-dark); margin-bottom: 0.5rem; display: block;">Default Card Privacy</label>
+                <div class="privacy-options" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <label class="privacy-option-card" style="display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; background: var(--bg-card); transition: border-color 0.2s;">
+                        <input type="radio" name="cards_visibility" value="private_user" checked style="margin-top: 0.2rem; accent-color: var(--accent);">
+                        <div>
+                            <span style="display: block; font-weight: 600; font-size: 0.9rem; color: var(--text-dark);">Private to Me</span>
+                            <span style="display: block; font-size: 0.75rem; color: var(--text-muted);">Only you can see cards you upload</span>
+                        </div>
+                    </label>
+                    <label class="privacy-option-card" style="display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; background: var(--bg-card); transition: border-color 0.2s;">
+                        <input type="radio" name="cards_visibility" value="private_team" style="margin-top: 0.2rem; accent-color: var(--accent);">
+                        <div>
+                            <span style="display: block; font-weight: 600; font-size: 0.9rem; color: var(--text-dark);">Private to Team</span>
+                            <span style="display: block; font-size: 0.75rem; color: var(--text-muted);">Only you, your team, and admins can see them</span>
+                        </div>
+                    </label>
+                    <label class="privacy-option-card" style="display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; background: var(--bg-card); transition: border-color 0.2s;">
+                        <input type="radio" name="cards_visibility" value="public" style="margin-top: 0.2rem; accent-color: var(--accent);">
+                        <div>
+                            <span style="display: block; font-weight: 600; font-size: 0.9rem; color: var(--text-dark);">Public</span>
+                            <span style="display: block; font-size: 0.75rem; color: var(--text-muted);">All registered users can see them</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
             <button type="submit" class="btn btn-primary btn-lg" style="width:100%; justify-content:center; margin-top:0.5rem;">
                 Register
             </button>

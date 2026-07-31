@@ -16,18 +16,16 @@ class SearchService {
         int $page = 1,
         int $perPage = ITEMS_PER_PAGE,
         ?int $currentUserId = null,
-        bool $isAdmin = false
+        bool $isAdmin = false,
+        ?int $currentTeamId = null,
+        ?int $scopeTeamId = null
     ): array {
         $db = Database::getConnection();
         $conditions = ["ct.is_deleted = 0"];
         $whereParams = [];
         $relevanceParams = [];
 
-        // Privacy filter: hide private cards from other users (unless admin)
-        if (!$isAdmin && $currentUserId !== null) {
-            $conditions[] = "(u_owner.cards_visibility = 'public' OR ct.added_by_user_id = :current_uid)";
-            $whereParams[':current_uid'] = $currentUserId;
-        }
+
 
         // AI-powered smart search with intent-aware query expansion
         if (!empty(trim($query))) {
@@ -40,16 +38,28 @@ class SearchService {
                     $stmt = $db->prepare("SELECT COUNT(*) FROM contacts WHERE name LIKE :q AND is_deleted = 0");
                     $stmt->execute([':q' => '%' . $searchTerm . '%']);
                 } else {
-                    $stmt = $db->prepare("
-                        SELECT COUNT(*) FROM contacts ct
-                        JOIN users u ON ct.added_by_user_id = u.id
-                        WHERE ct.name LIKE :q AND ct.is_deleted = 0
-                          AND (u.cards_visibility = 'public' OR ct.added_by_user_id = :current_uid)
-                    ");
-                    $stmt->execute([
-                        ':q' => '%' . $searchTerm . '%',
-                        ':current_uid' => $currentUserId
-                    ]);
+                    if ($currentTeamId !== null) {
+                        $stmt = $db->prepare("
+                            SELECT COUNT(*) FROM contacts ct
+                            WHERE ct.name LIKE :q AND ct.is_deleted = 0
+                              AND (ct.cards_visibility = 'public' OR ct.added_by_user_id = :current_uid OR (ct.cards_visibility = 'private_team' AND ct.team_id = :current_team_id))
+                        ");
+                        $stmt->execute([
+                            ':q' => '%' . $searchTerm . '%',
+                            ':current_uid' => $currentUserId,
+                            ':current_team_id' => $currentTeamId
+                        ]);
+                    } else {
+                        $stmt = $db->prepare("
+                            SELECT COUNT(*) FROM contacts ct
+                            WHERE ct.name LIKE :q AND ct.is_deleted = 0
+                              AND (ct.cards_visibility = 'public' OR ct.added_by_user_id = :current_uid)
+                        ");
+                        $stmt->execute([
+                            ':q' => '%' . $searchTerm . '%',
+                            ':current_uid' => $currentUserId
+                        ]);
+                    }
                 }
                 $contactCount = (int)$stmt->fetchColumn();
 
@@ -169,10 +179,26 @@ class SearchService {
             $relevanceScore = '0';
         }
 
-        // Scope filters
         if ($userId) {
+            // My Cards: only cards scanned from my account
             $conditions[] = "ct.added_by_user_id = :uid";
             $whereParams[':uid'] = $userId;
+        } elseif ($scopeTeamId) {
+            // My Team: all cards of my team (public or private_team only)
+            $conditions[] = "ct.team_id = :scope_team_id AND ct.cards_visibility IN ('public', 'private_team')";
+            $whereParams[':scope_team_id'] = $scopeTeamId;
+        } else {
+            // All Cards: all publicly available cards (or all if admin)
+            if (!$isAdmin) {
+                if ($currentTeamId !== null) {
+                    $conditions[] = "(ct.cards_visibility = 'public' OR ct.added_by_user_id = :current_uid OR (ct.cards_visibility = 'private_team' AND ct.team_id = :current_team_id))";
+                    $whereParams[':current_uid'] = $currentUserId;
+                    $whereParams[':current_team_id'] = $currentTeamId;
+                } else {
+                    $conditions[] = "(ct.cards_visibility = 'public' OR ct.added_by_user_id = :current_uid)";
+                    $whereParams[':current_uid'] = $currentUserId;
+                }
+            }
         }
         if ($deptId) {
             $conditions[] = "ct.added_by_department_id = :did";
@@ -214,7 +240,8 @@ class SearchService {
                    ct.added_by_user_id,
                    ct.rating_count, ct.rating_avg, ct.rating_bayesian,
                    co.name AS company_name, co.industry, co.city AS company_city,
-                   co.website, u_owner.name AS added_by_name, u_owner.cards_visibility,
+                   co.website, u_owner.name AS added_by_name, u_owner.cards_visibility AS user_default_visibility,
+                   ct.cards_visibility,
                    d.name AS dept_name,
                    GROUP_CONCAT(DISTINCT ps.name ORDER BY ps.name SEPARATOR ', ') AS products_services,
                    ({$relevanceScore}) AS relevance_score

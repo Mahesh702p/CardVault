@@ -7,6 +7,17 @@ header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Pragma: no-cache");
 $currentUser = AuthMiddleware::user();
 
+$passwordIsTemp = false;
+if ($currentUser) {
+    $db = Database::getConnection();
+    $stmt = $db->prepare("SELECT password_is_temp, password_changed_by_user FROM users WHERE id = :id");
+    $stmt->execute([':id' => $currentUser['id']]);
+    $authCheckRow = $stmt->fetch();
+    if ($authCheckRow) {
+        $passwordIsTemp = ((int)$authCheckRow['password_is_temp'] === 1 || !(bool)$authCheckRow['password_changed_by_user']);
+    }
+}
+
 $currentRoute = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/') ?: 'dashboard';
 ?>
 <!DOCTYPE html>
@@ -21,7 +32,7 @@ $currentRoute = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/') ?: '
     <meta name="description" content="Enterprise Visiting Card Management System with AI-powered card scanning">
     <link rel="manifest" href="<?= APP_URL ?>/manifest-v3.json">
     <link rel="apple-touch-icon" href="<?= APP_URL ?>/img/icon-192-v3.png">
-    <link rel="stylesheet" href="<?= APP_URL ?>/css/style.css?v=2.1.1">
+    <link rel="stylesheet" href="<?= APP_URL ?>/css/style.css?v=2.1.3">
     <!-- Anti-flash: apply saved theme before page renders -->
     <script>try{var t=localStorage.getItem('cv_theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
     <script>
@@ -56,16 +67,36 @@ $currentRoute = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/') ?: '
                 Search
             </a>
             <a href="<?= APP_URL ?>/help" class="nav-item <?= $currentRoute === 'help' ? 'active' : '' ?>">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px; height:18px; color: var(--text-muted);"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                 Help & Support
             </a>
+            <a href="<?= APP_URL ?>/team" class="nav-item <?= $currentRoute === 'team' ? 'active' : '' ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                My Team
+            </a>
+
+            <a href="<?= APP_URL ?>/export" class="nav-item <?= $currentRoute === 'export' ? 'active' : '' ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export My Data
+            </a>
+
+
+
 
 
             <?php if ($currentUser && $currentUser['role'] === 'admin'): ?>
             <div class="nav-section">Admin</div>
             <a href="<?= APP_URL ?>/users" class="nav-item <?= $currentRoute === 'users' ? 'active' : '' ?>">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 Users
+            </a>
+            <a href="<?= APP_URL ?>/admin/teams" class="nav-item <?= $currentRoute === 'admin/teams' ? 'active' : '' ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                Teams
+            </a>
+            <a href="<?= APP_URL ?>/admin/audit-logs" class="nav-item <?= $currentRoute === 'admin/audit-logs' ? 'active' : '' ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Audit Logs
             </a>
             <?php endif; ?>
         </nav>
@@ -124,7 +155,7 @@ $currentRoute = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/') ?: '
         </div>
 
         <div class="page-content">
-            <?php if (!empty($flash)): ?>
+            <?php if (!empty($flash) && $flash['type'] !== 'success'): ?>
             <div class="alert alert-<?= $flash['type'] === 'error' ? 'error' : ($flash['type'] ?? 'info') ?>">
                 <?= htmlspecialchars($flash['message'] ?? '') ?>
             </div>
@@ -140,11 +171,21 @@ $currentRoute = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/') ?: '
 
 <!-- Loading Overlay -->
 <div class="loading-overlay" id="loadingOverlay">
-    <div class="spinner"></div>
-    <p id="loadingText">Processing card with AI...</p>
+    <div class="scanner-container">
+        <div class="scanner-card">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="4" width="18" height="16" rx="2" ry="2"></rect>
+                <circle cx="9" cy="9" r="2"></circle>
+                <line x1="7" y1="14" x2="17" y2="14"></line>
+                <line x1="7" y1="17" x2="13" y2="17"></line>
+            </svg>
+            <div class="scanner-line"></div>
+        </div>
+    </div>
+    <p id="loadingText" class="scanner-text">Processing card with AI...</p>
 </div>
 
-<script src="<?= APP_URL ?>/js/app.js?v=2.0.4"></script>
+<script src="<?= APP_URL ?>/js/app.js?v=2.0.5"></script>
 <script>
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
@@ -268,5 +309,52 @@ document.addEventListener('DOMContentLoaded', () => {
     <?php endif; ?>
 });
 </script>
+
+<?php if ($passwordIsTemp): ?>
+<!-- Force Password Setting Modal -->
+<div class="sso-set-password-overlay" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.75); z-index: 10000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+    <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 2rem; max-width: 450px; width: 90%; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+        <div style="text-align: center; margin-bottom: 1.5rem;">
+            <div style="width: 48px; height: 48px; background: rgba(123, 45, 38, 0.1); color: var(--accent); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1rem;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            </div>
+            <h3 style="font-size: 1.25rem; font-weight: 600; margin: 0 0 0.5rem 0;">Secure Your Account</h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0; line-height: 1.4;">
+                Welcome! Since this is your first time logging in via SSO, please set a password. You will use this password if you ever want to log in directly.
+            </p>
+        </div>
+
+        <?php if (!empty($flash) && $flash['type'] === 'error'): ?>
+            <div class="alert alert-error" style="margin-bottom: 1.25rem; font-size: 0.85rem; padding: 0.75rem; border-radius: var(--radius-sm);">
+                <?= htmlspecialchars($flash['message']) ?>
+            </div>
+        <?php endif; ?>
+
+        <form method="POST" action="<?= APP_URL ?>/profile/password">
+            <?= CSRF::field() ?>
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label class="form-label" style="font-size: 0.8rem;">New Password *</label>
+                <input type="password" name="new_password" class="form-input" required minlength="6" placeholder="At least 6 characters" style="font-size: 0.9rem;">
+            </div>
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+                <label class="form-label" style="font-size: 0.8rem;">Confirm New Password *</label>
+                <input type="password" name="confirm_password" class="form-input" required minlength="6" placeholder="Repeat new password" style="font-size: 0.9rem;">
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 0.75rem;">
+                Set Password & Start Using CardVault
+            </button>
+        </form>
+
+        <div style="text-align: center; margin-top: 1.25rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+            <a href="<?= APP_URL ?>/auth/logout" style="font-size: 0.8rem; color: var(--text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                Log Out
+            </a>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 </body>
 </html>

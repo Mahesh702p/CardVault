@@ -1,6 +1,6 @@
 <?php /** Edit User (Admin) */ ?>
 <div style="max-width:600px; margin:0 auto;">
-    <a href="<?= APP_URL ?>/users" style="color:var(--text-muted); font-size:0.85rem;">← Back to Users</a>
+    <a href="<?= htmlspecialchars($_SESSION['last_users_list_url'] ?? (APP_URL . '/users')) ?>" style="color:var(--text-muted); font-size:0.85rem;" onclick="if(document.referrer && document.referrer.includes('/users') && !document.referrer.includes('/create') && !document.referrer.includes('/edit')){ window.history.back(); return false; }">← Back to Users</a>
     <h2 style="margin:1rem 0;">Edit User</h2>
 
     <!-- ─── Main Edit Form ─────────────────────────────────────────────────── -->
@@ -17,10 +17,29 @@
                     <input type="text" name="employee_id" class="form-input" value="<?= htmlspecialchars($editUser['employee_id'] ?? '') ?>" required placeholder="e.g. EMP12345">
                 </div>
             </div>
-            <div class="form-group">
-                <label class="form-label">Email <span style="color:var(--text-muted); font-weight:400;">(optional)</span></label>
-                <input type="email" name="email" class="form-input" value="<?= htmlspecialchars($editUser['email'] ?? '') ?>" placeholder="user@company.com">
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" name="email" class="form-input" value="<?= htmlspecialchars($editUser['email'] ?? '') ?>" placeholder="e.g. name@company.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Mobile Number</label>
+                    <input type="text" name="mobile" class="form-input" value="<?= htmlspecialchars($editUser['mobile'] ?? '') ?>" placeholder="e.g. 9876543210">
+                </div>
             </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Designation</label>
+                    <input type="text" name="designation" class="form-input" value="<?= htmlspecialchars($editUser['designation'] ?? '') ?>" placeholder="e.g. Software Engineer">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Work Location</label>
+                    <input type="text" name="work_location" class="form-input" value="<?= htmlspecialchars($editUser['work_location'] ?? '') ?>" placeholder="e.g. Powai">
+                </div>
+            </div>
+
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">Department *</label>
@@ -36,7 +55,7 @@
             </div>
         </div>
         <div style="display:flex; gap:0.75rem; justify-content:flex-end;">
-            <a href="<?= APP_URL ?>/users" class="btn btn-secondary">Cancel</a>
+            <a href="<?= htmlspecialchars($_SESSION['last_users_list_url'] ?? (APP_URL . '/users')) ?>" class="btn btn-secondary">Cancel</a>
             <button type="submit" class="btn btn-primary">Save Changes</button>
         </div>
     </form>
@@ -48,18 +67,20 @@
             Set a new temporary password for <strong><?= htmlspecialchars($editUser['name']) ?></strong>.
             Share it with the user and ask them to change it after logging in.
         </p>
-        <form method="POST" action="<?= APP_URL ?>/users/<?= $editUser['id'] ?>/reset-password" id="reset-password-form">
+        <form method="POST" action="<?= APP_URL ?>/users/<?= $editUser['id'] ?>/reset-password" id="reset-password-form" onsubmit="return validateResetForm()">
             <?= CSRF::field() ?>
-            <div style="display:flex; gap:0.75rem; align-items:flex-end; flex-wrap:wrap;">
+            <div style="display:flex; gap:0.75rem; align-items:flex-start; flex-wrap:wrap;">
                 <div class="form-group" style="flex:1; min-width:180px; margin:0;">
                     <label class="form-label">New Password <span style="color:var(--text-muted); font-weight:400;">(min. 6 chars)</span></label>
-                    <div style="position:relative;">
-                        <input type="text" id="reset_password_input" name="new_password" class="form-input" minlength="6" required placeholder="Enter new password" style="padding-right:2.5rem;">
-                        <button type="button" onclick="generatePassword()" title="Generate a random password"
-                            style="position:absolute; right:0.5rem; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--accent); font-size:1rem; padding:0;">🎲</button>
-                    </div>
+                    <input type="password" id="reset_password_input" name="new_password" class="form-input" minlength="6" required placeholder="••••••••">
                 </div>
-                <button type="submit" class="btn btn-secondary" onclick="return confirm('Reset password for <?= htmlspecialchars($editUser['name']) ?>?')">
+                <div class="form-group" style="flex:1; min-width:180px; margin:0;">
+                    <label class="form-label">Confirm New Password</label>
+                    <input type="password" id="reset_password_confirm" name="confirm_password" class="form-input" minlength="6" required placeholder="••••••••">
+                </div>
+            </div>
+            <div style="margin-top:1rem;">
+                <button type="submit" class="btn btn-secondary">
                     Reset Password
                 </button>
             </div>
@@ -84,13 +105,13 @@
 </div>
 
 <script>
-function generatePassword() {
-    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#$!';
-    let pass = '';
-    for (let i = 0; i < 10; i++) {
-        pass += chars.charAt(Math.floor(Math.random() * chars.length));
+function validateResetForm() {
+    const p1 = document.getElementById('reset_password_input').value;
+    const p2 = document.getElementById('reset_password_confirm').value;
+    if (p1 !== p2) {
+        alert('Passwords do not match. Please check and try again.');
+        return false;
     }
-    document.getElementById('reset_password_input').value = pass;
-    document.getElementById('reset_password_input').type = 'text';
+    return confirm('Reset password for <?= addslashes(htmlspecialchars($editUser['name'])) ?>?');
 }
 </script>

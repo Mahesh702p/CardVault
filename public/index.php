@@ -53,12 +53,14 @@ require_once BASE_PATH . '/src/Models/Company.php';
 require_once BASE_PATH . '/src/Models/ProductService.php';
 require_once BASE_PATH . '/src/Models/AuditLog.php';
 require_once BASE_PATH . '/src/Models/Rating.php';
+require_once BASE_PATH . '/src/Models/Team.php';
 
 require_once BASE_PATH . '/src/Controllers/AuthController.php';
 require_once BASE_PATH . '/src/Controllers/DashboardController.php';
 require_once BASE_PATH . '/src/Controllers/CardController.php';
 require_once BASE_PATH . '/src/Controllers/SearchController.php';
 require_once BASE_PATH . '/src/Controllers/UserController.php';
+require_once BASE_PATH . '/src/Controllers/TeamController.php';
 
 require_once BASE_PATH . '/src/Middleware/AuthMiddleware.php';
 
@@ -76,8 +78,11 @@ $method = $_SERVER['REQUEST_METHOD'];
 // Public routes (no auth required)
 $publicRoutes = ['login', 'auth/login', '', 'register', 'auth/register'];
 
+// VCF download routes self-authenticate via a one-time DB token — skip global auth gate
+$isTokenVcf = in_array($route, ['my-cards/vcf', 'my-team/vcf']) && !empty($_GET['_t']);
+
 // Check authentication for protected routes
-if (!in_array($route, $publicRoutes)) {
+if (!$isTokenVcf && !in_array($route, $publicRoutes)) {
     AuthMiddleware::check();
 }
 
@@ -229,9 +234,32 @@ switch ($route) {
         }
         break;
 
+    case (preg_match('/^users\/(\d+)\/activate$/', $route, $m) ? true : false):
+        if ($method === 'POST') {
+            UserController::activate((int)$m[1]);
+        }
+        break;
+
     case 'cards/export':
         UserController::exportCSV();
         break;
+
+    case 'my-cards/export':
+        UserController::exportMyCSV();
+        break;
+
+    case 'my-cards/vcf':
+        UserController::exportMyVCF();
+        break;
+
+    case 'my-team/export':
+        UserController::exportTeamCSV();
+        break;
+
+    case 'my-team/vcf':
+        UserController::exportTeamVCF();
+        break;
+
 
     case 'profile/password':
         if ($method === 'POST') {
@@ -249,11 +277,112 @@ switch ($route) {
         }
         break;
 
+    case 'export':
+        UserController::exportPage();
+        break;
+
     case 'help':
         $view = 'help/index';
         $pageTitle = 'Support & Help';
         $flash = Response::flash();
         include VIEW_PATH . '/layouts/main.php';
+        break;
+
+    // === TEAMS ===
+    case 'admin/teams':
+        TeamController::adminList();
+        break;
+
+    case 'admin/audit-logs':
+        UserController::auditLogs();
+        break;
+
+    case (preg_match('/^admin\/teams\/disband\/(\d+)$/', $route, $m) ? true : false):
+        if ($method === 'POST') {
+            TeamController::adminDisband((int)$m[1]);
+        }
+        break;
+
+    case 'team':
+        TeamController::indexPage();
+        break;
+
+    case 'team/create':
+        if ($method === 'POST') {
+            TeamController::create();
+        }
+        break;
+
+    case 'team/join':
+        if ($method === 'POST') {
+            TeamController::join();
+        }
+        break;
+
+    case 'team/leave':
+        if ($method === 'POST') {
+            TeamController::leave();
+        }
+        break;
+
+    case 'team/disband':
+        if ($method === 'POST') {
+            TeamController::disband();
+        }
+        break;
+
+    case 'team/change-password':
+        if ($method === 'POST') {
+            TeamController::changePassword();
+        }
+        break;
+
+    case (preg_match('/^team\/remove-member\/(\d+)$/', $route, $m) ? true : false):
+        if ($method === 'POST') {
+            TeamController::removeMember((int)$m[1]);
+        }
+        break;
+
+    case (preg_match('/^team\/make-admin\/(\d+)$/', $route, $m) ? true : false):
+        if ($method === 'POST') {
+            TeamController::makeAdmin((int)$m[1]);
+        }
+        break;
+
+    case 'team/invite-member':
+        if ($method === 'POST') {
+            TeamController::inviteMember();
+        }
+        break;
+
+    case (preg_match('/^team\/accept-invite\/(\d+)$/', $route, $m) ? true : false):
+        if ($method === 'POST') {
+            TeamController::acceptInvite((int)$m[1]);
+        }
+        break;
+
+    case (preg_match('/^team\/decline-invite\/(\d+)$/', $route, $m) ? true : false):
+        if ($method === 'POST') {
+            TeamController::declineInvite((int)$m[1]);
+        }
+        break;
+
+    case (preg_match('/^team\/cancel-invite\/(\d+)$/', $route, $m) ? true : false):
+        if ($method === 'POST') {
+            TeamController::cancelInvite((int)$m[1]);
+        }
+        break;
+
+    case 'team/update-details':
+        if ($method === 'POST') {
+            TeamController::updateDetails();
+        }
+        break;
+
+    case (preg_match('/^team\/toggle-admin\/(\d+)$/', $route, $m) ? true : false):
+        if ($method === 'POST') {
+            TeamController::toggleAdminStatus((int)$m[1]);
+        }
         break;
 
     // === API ENDPOINTS ===

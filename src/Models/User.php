@@ -12,7 +12,7 @@ class User {
         $stmt = $db->prepare("
             SELECT u.*, d.name as department_name
             FROM users u
-            JOIN departments d ON u.department_id = d.id
+            LEFT JOIN departments d ON u.department_id = d.id
             WHERE u.employee_id = :emp_id AND u.is_active = 1
         ");
         $stmt->execute([':emp_id' => $employeeId]);
@@ -27,7 +27,7 @@ class User {
         $stmt = $db->prepare("
             SELECT u.*, d.name as department_name 
             FROM users u 
-            JOIN departments d ON u.department_id = d.id 
+            LEFT JOIN departments d ON u.department_id = d.id 
             WHERE u.email = :email AND u.is_active = 1
         ");
         $stmt->execute([':email' => $email]);
@@ -42,30 +42,34 @@ class User {
         $stmt = $db->prepare("
             SELECT u.*, d.name as department_name 
             FROM users u 
-            JOIN departments d ON u.department_id = d.id 
+            LEFT JOIN departments d ON u.department_id = d.id 
             WHERE u.id = :id
         ");
         $stmt->execute([':id' => $id]);
         return $stmt->fetch() ?: null;
     }
 
-    /**
-     * Get all active users
-     */
     public static function all(): array {
         $db = Database::getConnection();
         $stmt = $db->query("
-            SELECT u.*, d.name as department_name 
+            SELECT u.*, d.name as department_name, COUNT(c.id) as cards_count
             FROM users u 
             JOIN departments d ON u.department_id = d.id 
-            WHERE u.is_active = 1
-            ORDER BY u.name
+            LEFT JOIN contacts c ON u.id = c.added_by_user_id AND c.is_deleted = 0
+            GROUP BY u.id
+            ORDER BY u.is_active DESC, u.name
         ");
         return $stmt->fetchAll();
     }
 
     public static function create(array $data): int {
         $db = Database::getConnection();
+        $visibility = $data['cards_visibility'] ?? 'public';
+        if (!in_array($visibility, ['public', 'private_team', 'private_user'])) {
+            $visibility = 'public';
+        }
+        $passwordIsTemp = isset($data['password_is_temp']) ? (int)$data['password_is_temp'] : 0;
+        $passwordChangedByUser = $passwordIsTemp ? 0 : 1;
 
         // Check if user with this employee_id exists and is inactive (soft-deactivated)
         if (!empty($data['employee_id'])) {
@@ -79,35 +83,53 @@ class User {
                     UPDATE users SET
                         name = :name,
                         email = :email,
+                        mobile = :mobile,
+                        designation = :designation,
+                        work_location = :work_location,
                         password_hash = :password_hash,
+                        password_is_temp = :password_is_temp,
+                        password_changed_by_user = :password_changed_by_user,
                         department_id = :department_id,
                         role = :role,
+                        cards_visibility = :cards_visibility,
                         is_active = 1
                     WHERE id = :id
                 ");
                 $stmt->execute([
-                    ':name'          => $data['name'],
-                    ':email'         => $data['email'] ?? null,
-                    ':password_hash' => password_hash($data['password'], PASSWORD_DEFAULT),
-                    ':department_id' => $data['department_id'],
-                    ':role'          => $data['role'] ?? 'user',
-                    ':id'            => $existing['id']
+                    ':name'                     => $data['name'],
+                    ':email'                    => $data['email'] ?? null,
+                    ':mobile'                   => $data['mobile'] ?? null,
+                    ':designation'              => $data['designation'] ?? null,
+                    ':work_location'            => $data['work_location'] ?? null,
+                    ':password_hash'            => password_hash($data['password'], PASSWORD_DEFAULT),
+                    ':password_is_temp'         => $passwordIsTemp,
+                    ':password_changed_by_user' => $passwordChangedByUser,
+                    ':department_id'            => $data['department_id'],
+                    ':role'                     => $data['role'] ?? 'user',
+                    ':cards_visibility'         => $visibility,
+                    ':id'                       => $existing['id']
                 ]);
                 return (int)$existing['id'];
             }
         }
 
         $stmt = $db->prepare("
-            INSERT INTO users (employee_id, name, email, password_hash, department_id, role)
-            VALUES (:employee_id, :name, :email, :password_hash, :department_id, :role)
+            INSERT INTO users (employee_id, name, email, mobile, designation, work_location, password_hash, password_is_temp, password_changed_by_user, department_id, role, cards_visibility)
+            VALUES (:employee_id, :name, :email, :mobile, :designation, :work_location, :password_hash, :password_is_temp, :password_changed_by_user, :department_id, :role, :cards_visibility)
         ");
         $stmt->execute([
-            ':employee_id'   => $data['employee_id'] ?: null,
-            ':name'          => $data['name'],
-            ':email'         => $data['email'] ?? null,
-            ':password_hash' => password_hash($data['password'], PASSWORD_DEFAULT),
-            ':department_id' => $data['department_id'],
-            ':role'          => $data['role'] ?? 'user'
+            ':employee_id'              => $data['employee_id'] ?: null,
+            ':name'                     => $data['name'],
+            ':email'                    => $data['email'] ?? null,
+            ':mobile'                   => $data['mobile'] ?? null,
+            ':designation'              => $data['designation'] ?? null,
+            ':work_location'            => $data['work_location'] ?? null,
+            ':password_hash'            => password_hash($data['password'], PASSWORD_DEFAULT),
+            ':password_is_temp'         => $passwordIsTemp,
+            ':password_changed_by_user' => $passwordChangedByUser,
+            ':department_id'            => $data['department_id'],
+            ':role'                     => $data['role'] ?? 'user',
+            ':cards_visibility'         => $visibility
         ]);
         return (int)$db->lastInsertId();
     }
@@ -121,6 +143,9 @@ class User {
             UPDATE users SET
                 name = :name,
                 email = :email,
+                mobile = :mobile,
+                designation = :designation,
+                work_location = :work_location,
                 department_id = :department_id,
                 role = :role,
                 employee_id = :employee_id
@@ -129,6 +154,9 @@ class User {
         $stmt->execute([
             ':name'          => $data['name'],
             ':email'         => $data['email'] ?? null,
+            ':mobile'        => $data['mobile'] ?? null,
+            ':designation'   => $data['designation'] ?? null,
+            ':work_location' => $data['work_location'] ?? null,
             ':department_id' => $data['department_id'],
             ':role'          => $data['role'],
             ':employee_id'   => $data['employee_id'] ?: null,
@@ -141,7 +169,7 @@ class User {
      */
     public static function resetPassword(int $id, string $newPassword): void {
         $db = Database::getConnection();
-        $stmt = $db->prepare("UPDATE users SET password_hash = :hash WHERE id = :id");
+        $stmt = $db->prepare("UPDATE users SET password_hash = :hash, password_is_temp = FALSE WHERE id = :id");
         $stmt->execute([
             ':hash' => password_hash($newPassword, PASSWORD_DEFAULT),
             ':id'   => $id
@@ -166,13 +194,25 @@ class User {
     }
 
     /**
+     * Mark that a user has consciously set their own password through the self-service flow.
+     * This permanently prevents the "Set Password" popup from appearing again.
+     */
+    public static function markPasswordChanged(int $id): void {
+        $db = Database::getConnection();
+        $db->prepare("UPDATE users SET password_changed_by_user = TRUE WHERE id = :id")
+           ->execute([':id' => $id]);
+    }
+
+    /**
      * Update a user's card visibility preference (public/private)
      */
     public static function updateVisibility(int $id, string $visibility): void {
         $db = Database::getConnection();
-        $v = $visibility === 'private' ? 'private' : 'public';
+        if (!in_array($visibility, ['public', 'private_team', 'private_user'])) {
+            $visibility = 'public';
+        }
         $stmt = $db->prepare("UPDATE users SET cards_visibility = :v WHERE id = :id");
-        $stmt->execute([':v' => $v, ':id' => $id]);
+        $stmt->execute([':v' => $visibility, ':id' => $id]);
     }
 
     /**
@@ -181,6 +221,15 @@ class User {
     public static function deactivate(int $id): void {
         $db = Database::getConnection();
         $stmt = $db->prepare("UPDATE users SET is_active = 0 WHERE id = :id");
+        $stmt->execute([':id' => $id]);
+    }
+
+    /**
+     * Reactivate a user
+     */
+    public static function activate(int $id): void {
+        $db = Database::getConnection();
+        $stmt = $db->prepare("UPDATE users SET is_active = 1 WHERE id = :id");
         $stmt->execute([':id' => $id]);
     }
 

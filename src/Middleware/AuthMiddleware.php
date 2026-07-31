@@ -34,6 +34,7 @@ class AuthMiddleware {
                 'role'            => $data['role'],
                 'department_id'   => $data['dep'],
                 'department_name' => $data['depn'],
+                'team_id'         => $data['team'] ?? null,
             ];
             return true;
         }

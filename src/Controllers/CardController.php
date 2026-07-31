@@ -76,8 +76,8 @@ class CardController {
             Response::redirect('cards/upload', ['type' => 'error', 'message' => 'Invalid request.']);
             return;
         }
-
         $user = AuthMiddleware::user();
+        $userDb = User::findById($user['id']);
         $db = Database::getConnection();
         
         // Normalize phone numbers — strip spaces, dashes, brackets
@@ -103,7 +103,7 @@ class CardController {
             // 1.5 Check for duplicate contact
             $personName = substr($_POST['person_name'] ?? '', 0, 200);
             if (!empty($personName)) {
-                $duplicate = Contact::findDuplicate($personName, $companyId, $user['id']);
+                $duplicate = Contact::findDuplicate($personName, $companyId, $user['id'], $userDb['team_id'] ?? null);
                 if ($duplicate) {
                     $db->rollBack();
                     
@@ -128,6 +128,11 @@ class CardController {
             }
 
             // 2. Create contact
+            $visibility = $_POST['cards_visibility'] ?? $userDb['cards_visibility'] ?? 'public';
+            if (!in_array($visibility, ['public', 'private_team', 'private_user'])) {
+                $visibility = 'public';
+            }
+
             $contactId = Contact::create([
                 'company_id'            => $companyId,
                 'name'                  => $personName,
@@ -142,9 +147,14 @@ class CardController {
                 'card_back_image'       => $_POST['card_back_image'] ?? '',
                 'added_by_user_id'      => $user['id'],
                 'added_by_department_id'=> $user['department_id'],
+                'cards_visibility'      => $visibility,
+                'team_id'               => $userDb['team_id'] ?? null,
                 'ai_confidence_score'   => $_POST['confidence_score'] ?? null,
                 'is_verified'           => isset($_POST['is_verified']) ? 1 : 0
             ]);
+
+            // Update user's default visibility preference to match the saved card's setting
+            User::updateVisibility($user['id'], $visibility);
 
             // 3. Process products/services
             $products = $_POST['products_services'] ?? '';
@@ -207,18 +217,25 @@ class CardController {
      */
     public static function list(): void {
         $user = AuthMiddleware::user();
+        $_SESSION['last_cards_list_url'] = $_SERVER['REQUEST_URI'];
         $scope = $_GET['scope'] ?? 'all';
         $page = max(1, (int)($_GET['page'] ?? 1));
 
         $userId = null;
         $deptId = null;
+        $scopeTeamId = null;
 
         if ($scope === 'mine') {
             $userId = $user['id'];
+        } elseif ($scope === 'team' && !empty($user['team_id'])) {
+            $scopeTeamId = $user['team_id'];
         }
 
         $isAdmin = ($user['role'] === 'admin');
-        $result = Contact::getFiltered($userId, $deptId, $page, ITEMS_PER_PAGE, $user['id'], $isAdmin);
+        $result = Contact::getFiltered(
+            $userId, $deptId, $page, ITEMS_PER_PAGE, $user['id'], $isAdmin,
+            $user['team_id'] ?? null, $scopeTeamId
+        );
         $filterOptions = SearchService::getFilterOptions();
         
         $view = 'cards/list';
@@ -240,9 +257,17 @@ class CardController {
             return true;
         }
         
-        // If private, only the uploader or an admin can access
         if ($user) {
-            if ($user['role'] === 'admin' || $contact['added_by_user_id'] == $user['id']) {
+            // Admins always have access
+            if ($user['role'] === 'admin') {
+                return true;
+            }
+            // Uploader always has access
+            if ($contact['added_by_user_id'] == $user['id']) {
+                return true;
+            }
+            // Team members have access only if visibility is 'private_team'
+            if ($visibility === 'private_team' && !empty($contact['added_by_user_team_id']) && $contact['added_by_user_team_id'] == ($user['team_id'] ?? null)) {
                 return true;
             }
         }
@@ -326,6 +351,14 @@ class CardController {
             return;
         }
 
+        $visibility = $_POST['cards_visibility'] ?? $contact['cards_visibility'] ?? 'public';
+        if (!in_array($visibility, ['public', 'private_team', 'private_user'])) {
+            $visibility = 'public';
+        }
+
+        $owner = User::findById($contact['added_by_user_id']);
+        $ownerTeamId = $owner['team_id'] ?? null;
+
         Contact::update($id, [
             ':name' => $_POST['person_name'] ?? '',
             ':designation' => $_POST['designation'] ?? '',
@@ -335,8 +368,12 @@ class CardController {
             ':email_primary' => $_POST['email_primary'] ?? '',
             ':email_secondary' => $_POST['email_secondary'] ?? '',
             ':linkedin_url' => $_POST['linkedin_url'] ?? '',
-            ':is_verified' => isset($_POST['is_verified']) ? 1 : 0
+            ':is_verified' => isset($_POST['is_verified']) ? 1 : 0,
+            ':cards_visibility' => $visibility,
+            ':team_id' => $ownerTeamId
         ]);
+
+        User::updateVisibility($user['id'], $visibility);
 
         AuditLog::log('update', 'contact', $id);
         Response::redirect("cards/{$id}", ['type' => 'success', 'message' => 'Card updated successfully!']);
@@ -366,7 +403,8 @@ class CardController {
 
         Contact::delete($id);
         AuditLog::log('delete', 'contact', $id);
-        Response::redirect('cards', ['type' => 'success', 'message' => 'Card deleted successfully.']);
+        $redirectUrl = $_SESSION['last_cards_list_url'] ?? 'cards';
+        Response::redirect($redirectUrl, ['type' => 'success', 'message' => 'Card deleted successfully.']);
     }
 
     /**

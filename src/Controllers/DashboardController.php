@@ -10,7 +10,7 @@ class DashboardController {
     public static function index(): void {
         $user = AuthMiddleware::user();
         $isAdmin = ($user['role'] === 'admin');
-        $stats = Contact::getStats($user['id'], $user['department_id'], $user['id'], $isAdmin);
+        $stats = Contact::getStats($user['id'], $user['department_id'], $user['id'], $isAdmin, $user['team_id'] ?? null);
         $filterOptions = SearchService::getFilterOptions();
         
         $view = 'dashboard/index';
@@ -25,7 +25,7 @@ class DashboardController {
     public static function apiStats(): void {
         $user = AuthMiddleware::user();
         $isAdmin = ($user['role'] === 'admin');
-        $stats = Contact::getStats($user['id'], $user['department_id'], $user['id'], $isAdmin);
+        $stats = Contact::getStats($user['id'], $user['department_id'], $user['id'], $isAdmin, $user['team_id'] ?? null);
         Response::json($stats);
     }
 }

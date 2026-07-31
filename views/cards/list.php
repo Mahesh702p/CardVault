@@ -17,6 +17,9 @@ if (!function_exists('getInitials')) {
     <div class="scope-tabs">
         <a href="<?= APP_URL ?>/cards?scope=all" class="scope-tab <?= ($scope ?? 'all') === 'all' ? 'active' : '' ?>">All Cards</a>
         <a href="<?= APP_URL ?>/cards?scope=mine" class="scope-tab <?= ($scope ?? '') === 'mine' ? 'active' : '' ?>">My Cards</a>
+        <?php if (!empty($currentUser['team_id'])): ?>
+            <a href="<?= APP_URL ?>/cards?scope=team" class="scope-tab <?= ($scope ?? '') === 'team' ? 'active' : '' ?>">My Team</a>
+        <?php endif; ?>
     </div>
 
     <div style="display:flex; align-items:center; gap:0.75rem; margin-left:auto;">

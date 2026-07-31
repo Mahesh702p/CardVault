@@ -21,7 +21,11 @@ class Response {
         if (!empty($flash)) {
             $_SESSION['flash'] = $flash;
         }
-        header('Location: ' . APP_URL . '/' . ltrim($path, '/'));
+        if (strpos($path, 'http://') === 0 || strpos($path, 'https://') === 0) {
+            header('Location: ' . $path);
+        } else {
+            header('Location: ' . APP_URL . '/' . ltrim($path, '/'));
+        }
         exit;
     }
 

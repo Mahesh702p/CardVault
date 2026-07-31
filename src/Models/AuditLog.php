@@ -27,4 +27,35 @@ class AuditLog {
             error_log("Audit log failed: " . $e->getMessage());
         }
     }
+
+    /**
+     * Get paginated audit logs with user names
+     */
+    public static function getLogs(int $page = 1, int $perPage = 50): array {
+        $db = Database::getConnection();
+        $offset = ($page - 1) * $perPage;
+        
+        $totalStmt = $db->query("SELECT COUNT(*) FROM audit_log");
+        $total = (int)$totalStmt->fetchColumn();
+
+        $stmt = $db->prepare("
+            SELECT al.*, u.name AS user_name, u.email AS user_email
+            FROM audit_log al
+            LEFT JOIN users u ON al.user_id = u.id
+            ORDER BY al.created_at DESC
+            LIMIT :limit OFFSET :offset
+        ");
+        $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        $logs = $stmt->fetchAll();
+
+        return [
+            'data' => $logs,
+            'total' => $total,
+            'page' => $page,
+            'perPage' => $perPage,
+            'totalPages' => ceil($total / $perPage)
+        ];
+    }
 }

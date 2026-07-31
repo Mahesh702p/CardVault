@@ -19,6 +19,7 @@ class Auth {
             'role' => $user['role'],
             'dep'  => (int)($user['department_id'] ?? 0),
             'depn' => $user['department_name'] ?? '',
+            'team' => !empty($user['team_id']) ? (int)$user['team_id'] : null,
             'exp'  => time() + self::COOKIE_LIFE,
         ]));
 
